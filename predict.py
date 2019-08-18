@@ -48,12 +48,9 @@ def create_parser():
 def load_checkpoint(checkpoint, device):
     try:
         if os.path.isfile(checkpoint):
-            # exctract model name from file name
-            model_name = checkpoint.split('_')[0]
-
             # load file and model
             checkpoint_meta = torch.load(checkpoint)
-            model = VALID_MODELS[model_name](pretrained=True)
+            model = VALID_MODELS[checkpoint_meta['architecture']](pretrained=True)
             
             model.classifier = checkpoint_meta['classifier']
             model.load_state_dict(checkpoint_meta['state_dict'])
@@ -103,7 +100,7 @@ def predict(image_path, model, topk, device):
     
     # my_tensor.to('cuda') does not work
     # solution found on https://pytorch.org/tutorials/beginner/former_torchies/tensor_tutorial.html
-    my_tensor = my_tensor1.to(torch.device("cuda"))
+    my_tensor = my_tensor1.to(torch.device(device))
     logger.info('running on device {}'.format(my_tensor.device))
     
     with torch.no_grad():
@@ -138,14 +135,18 @@ def main():
     # read checpoint file and load model
     model = load_checkpoint(checkpoint, device)
     probs, indxs = predict(img_path, model, top_k, device)
-
-    topk_dict = {k: v for k,v in zip(indxs, probs)}
+    
+    # read class to index mapping
+    idx_to_class = {v: k for k,v in model.class_to_idx.items()}
+    topk_dict = {idx_to_class[k]: v for k,v in zip(indxs, probs)}
     
     if category_names:
         logger.info('reading json file {}'.format(category_names))
         with open(category_names, 'r') as f:
             cat_to_name = json.load(f)
-        classes = [cat_to_name[str(i)] for i in indxs]
+    
+        classes = [idx_to_class[idx] for idx in indxs]
+        classes = [cat_to_name[str(i)] for i in classes]
         topk_dict = {k: v for k,v in zip(classes, probs)}
         print('\nTop {} flowers with predicted probabilities'.format(top_k))
         print('-------------------------------------------')

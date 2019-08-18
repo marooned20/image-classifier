@@ -101,9 +101,6 @@ def load_model(architecture):
 
 
 def create_classifier(model, hidden_units, output_units=102):
-
-    # make sure hidden units are greater than output_units
-    assert hidden_units > output_units, 'Hidden Layer must be greater than 102'
     
     # extract base input features from original (vgg16) model
     input_features = model.classifier[0].in_features
@@ -115,7 +112,7 @@ def create_classifier(model, hidden_units, output_units=102):
                                         ('fc2', nn.Linear(4096, hidden_units)),
                                         ('relu2', nn.ReLU()),
                                         ('dropout2', nn.Dropout(p=0.3)),
-                                        ('fc3', nn.Linear(512, output_units)),
+                                        ('fc3', nn.Linear(hidden_units, output_units)),
                                         ('output', nn.LogSoftmax(dim=1))
                                         ]))
     
@@ -222,11 +219,8 @@ def main():
     hidden_units = args.hidden_units
     epochs = args.epochs
     gpu = args.gpu
-
     
     device = torch.device('cuda' if gpu and torch.cuda.is_available() else 'cpu')
-    # TODO: remove print statement later
-    print(data_dir, learning_rate, save_dir, arch, hidden_units, epochs, gpu, device)
 
     # transform and load data
     train_dir = data_dir + '/train'
