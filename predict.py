@@ -139,13 +139,20 @@ def main():
     model = load_checkpoint(checkpoint, device)
     probs, indxs = predict(img_path, model, top_k, device)
 
-    topk_dict = {k: v for k,v in zip(probs, indxs)}
-    print('\n'.join([str(i) for i in sorted(topk_dict.items(), key = lambda x: x[1], reverse=True)[:top_k]]))
-
+    topk_dict = {k: v for k,v in zip(indxs, probs)}
+    
     if category_names:
+        logger.info('reading json file {}'.format(category_names))
         with open(category_names, 'r') as f:
             cat_to_name = json.load(f)
         classes = [cat_to_name[str(i)] for i in indxs]
-        topk_dict = {k: v for k,v in zip(probs, classes)}
+        topk_dict = {k: v for k,v in zip(classes, probs)}
+        print('\nTop {} flowers with predicted probabilities'.format(top_k))
+        print('-------------------------------------------')
         print('\n'.join([str(i) for i in sorted(topk_dict.items(), key = lambda x: x[1], reverse=True)[:top_k]]))
-        
+    else:
+        print('\nTop {} classes with predicted probabilities'.format(top_k))
+        print('------------------------------------------')
+        print('\n'.join([str(i) for i in sorted(topk_dict.items(), key = lambda x: x[1], reverse=True)[:top_k]]))
+
+main()
