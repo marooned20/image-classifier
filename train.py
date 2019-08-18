@@ -25,6 +25,27 @@ logger = logging.getLogger(name)
 # constants
 VALID_MODELS = ['vgg13', 'vgg16', 'vgg19']
 
+def create_parser():
+
+    parser = argparse.ArgumentParser(description='Train your neural network')
+    parser.add_argument('data_dir', type=str, required=True,
+                        help='path to folder where train, valid and test images are stored')
+    parser.add_argument('--save_dir', type=str, required=False, default=os.getcwd(),
+                        help='path to folder where trained model will be saved as <arch>_checkpoint.pth')
+    parser.add_argument('--arch', type=str, required=False, default='vgg16',
+                        help='pretrained models from torch.models - choose from "vgg13", "vgg16" or "vgg19"')
+    parser.add_argument('--learning_rate', type=float, required=False, default=0.001,
+                        help='your favourite learning rate')
+    parser.add_argument('--hidden_units', type=int, required=False, default=512,
+                        help='number of features in the hidden layer')
+    parser.add_argument('--epochs', type=int, required=False, default=5, 
+                        help='How many iterations')
+    parser.add_argument('--gpu', action='store_true',
+                        help='use gpu / CUDA if available')
+
+    return parser
+
+
 def transform_load(data_dir, train=True):
     # check if directory actually exists
     if not os.path.isdir(data_dir):
@@ -163,3 +184,11 @@ def create_checkpoint(model, train_data, save_dir):
         logger.debug('Saved checkpoint file: {} at {}'.format(fname, save_dir))
     except Exception as e:
         logger.error('Could not save checkpoint file. Error: {}'.format(e))
+    # TODO: Add finally block in case of invalid save_dir, to prevent losing model
+
+
+def main():
+    parser = create_parser()
+
+    # parse arguments
+    args = parser.parse_args()
