@@ -176,9 +176,9 @@ def nn_train(train_loader, valid_loader, model, criterion, optimizer, device, ep
                             Validation Loss: {:.3f}.. \
                             Validation Accuracy: {:.3f}".
                             format(epoch+1, epochs, 
-                                   str(running_loss/print_every), 
-                                   str(valid_loss/len(valid_loader), 
-                                   str(accuracy/len(valid_loader)))))
+                                   running_loss/print_every, 
+                                   valid_loss/len(valid_loader), 
+                                   accuracy/len(valid_loader)))
                 
                 running_loss = 0
                 model.train()
