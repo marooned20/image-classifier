@@ -171,10 +171,7 @@ def nn_train(train_loader, valid_loader, model, criterion, optimizer, device, ep
                 model.eval()
                 valid_loss, accuracy = validate_train_model(model, valid_loader, criterion, device)
                     
-                logger.info("Epoch: {}/{}.. \
-                            Training Loss: {:.3f}.. \
-                            Validation Loss: {:.3f}.. \
-                            Validation Accuracy: {:.3f}".
+                logger.info("Epoch: {}/{}.. Training Loss: {:.3f}.. Validation Loss: {:.3f}.. Validation Accuracy: {:.3f}".
                             format(epoch+1, epochs, 
                                    running_loss/print_every, 
                                    valid_loss/len(valid_loader), 
@@ -202,10 +199,13 @@ def create_checkpoint(model, train_data, save_dir):
     f_dir = os.path.join(save_dir, fname)
     try:
         torch.save(checkpoint_meta, f_dir)
-        logger.debug('Saved checkpoint file: {} at {}'.format(fname, save_dir))
+        logger.info('Saved checkpoint file: {} at {}'.format(fname, save_dir))
     except Exception as e:
         logger.error('Could not save checkpoint file. Error: {}'.format(e))
     # TODO: Add finally block in case of invalid save_dir, to prevent losing model
+    finally:
+        torch.save(checkpoint_meta, os.path.join(os.getcwd(), fname))
+        logger.info('Saved checkpoint file: {} at {}'.format(fname, os.getcwd()))
 
 
 def main():
@@ -254,8 +254,9 @@ def main():
 
     # quick test/validation of the network
     test_loss, accuracy = validate_train_model(model, test_loader, criterion, device)
-    logger.debug("test Loss: {:.3f}.. ".format(test_loss/len(test_loader)),
-      "test Accuracy: {:.3f}".format(accuracy/len(test_loader)))
+    logger.debug("test Loss: {:.3f}.. test Accuracy: {:.3f}".
+                    format(test_loss/len(test_loader), 
+                           accuracy/len(test_loader)))
 
     # save checkpoint
     create_checkpoint(model, train_data, save_dir)
