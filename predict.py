@@ -112,5 +112,40 @@ def predict(image_path, model, topk, device):
     
     logger.info('Predicting top {} probabilities and classes'.format(topk))
     topk_prob, topk_class = ps.topk(topk)
+
+    topk_prob = topk_prob.tolist()[0]
+    topk_class = topk_class.tolist()[0]
     
     return topk_prob, topk_class
+
+
+def main():
+
+    parser = create_parser()
+
+    # parse arguments
+    args = parser.parse_args()
+
+    # assign values
+    img_path = args.img_path
+    checkpoint = args.checkpoint
+    top_k = args.top_k
+    category_names = args.category_names
+    gpu = args.gpu
+
+    device = torch.device('cuda' if gpu and torch.cuda.is_available() else 'cpu')
+    
+    # read checpoint file and load model
+    model = load_checkpoint(checkpoint, device)
+    probs, indxs = predict(img_path, model, top_k, device)
+
+    topk_dict = {k: v for k,v in zip(probs, indxs)}
+    print('\n'.join([str(i) for i in sorted(topk_dict.items(), key = lambda x: x[1], reverse=True)[:top_k]]))
+
+    if category_names:
+        with open(category_names, 'r') as f:
+            cat_to_name = json.load(f)
+        classes = [cat_to_name[str(i)] for i in indxs]
+        topk_dict = {k: v for k,v in zip(probs, classes)}
+        print('\n'.join([str(i) for i in sorted(topk_dict.items(), key = lambda x: x[1], reverse=True)[:top_k]]))
+        
