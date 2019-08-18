@@ -23,7 +23,9 @@ logging.basicConfig(stream=sys.stdout,
 logger = logging.getLogger(name)
 
 # constants
-VALID_MODELS = ['vgg13', 'vgg16', 'vgg19']
+VALID_MODELS = {'vgg13': models.vgg13, 
+                'vgg16': models.vgg16, 
+                'vgg19': models.vgg19}
 
 def create_parser():
 
@@ -76,19 +78,24 @@ def data_loader(data):
 
 
 def load_model(architecture):
-    if architecture in VALID_MODELS:
+
+    if architecture in VALID_MODELS.keys():
         try:
-            exec("model = models.{}(pretrained=True)".format(architecture))
+            model = VALID_MODELS[architecture](pretrained=True)
             model.name = architecture
+            logger.info(("model = models.{}(pretrained=True)".format(architecture)))
         except Exception as e:
             logger.error(e)
     else:
-        logger.error('Please select model from {}'.format(str(VALID_MODELS)))
+        model = VALID_MODELS['vgg16'](pretrained=True)
+        model.name = 'vgg16'
+        logger.error('Supplied architecture {} is not supported'.format(str(architecture)))
+        logger.info('Defaulting to "vgg16"')
 
     # freeze to avoid backpropogation
     for param in model.parameters():
         param.requires_grad = False
-    logger.debug('params frozen')
+    logger.info('params frozen')
     
     return model
 
@@ -121,7 +128,7 @@ def validate_train_model(model, loader, criterion, device):
         valid_loss = 0
         accuracy = 0
         model.to(device)
-        logger.debug('training model on {}'.format(device))
+        logger.info('validating model on {}'.format(device))
 
         for inputs, labels in loader:
             inputs, labels = inputs.to(device), labels.to(device)
@@ -138,6 +145,10 @@ def validate_train_model(model, loader, criterion, device):
 
 def nn_train(train_loader, valid_loader, model, criterion, optimizer, device, epochs):
     print_every = 30
+    steps = 0
+    running_loss = 0
+    logger.info('running on {}'.format(device))
+
     for epoch in range(epochs):
         model.to(device)
         model.train()
@@ -160,10 +171,14 @@ def nn_train(train_loader, valid_loader, model, criterion, optimizer, device, ep
                 model.eval()
                 valid_loss, accuracy = validate_train_model(model, valid_loader, criterion, device)
                     
-                logger.debug("Epoch: {}/{}.. ".format(epoch+1, epochs),
-                    "Training Loss: {:.3f}.. ".format(running_loss/print_every),
-                    "Validation Loss: {:.3f}.. ".format(valid_loss/len(valid_loader)),
-                    "Validation Accuracy: {:.3f}".format(accuracy/len(valid_loader)))
+                logger.info("Epoch: {}/{}.. \
+                            Training Loss: {:.3f}.. \
+                            Validation Loss: {:.3f}.. \
+                            Validation Accuracy: {:.3f}".
+                            format(epoch+1, epochs, 
+                                   str(running_loss/print_every), 
+                                   str(valid_loss/len(valid_loader), 
+                                   str(accuracy/len(valid_loader)))))
                 
                 running_loss = 0
                 model.train()
