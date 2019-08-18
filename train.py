@@ -250,6 +250,7 @@ def main():
     optimizer = optim.Adam(model.classifier.parameters(), lr=learning_rate)
 
     # train neural network
+    logger.info('training neural network for {} epochs, it may take upto several minutes')
     nn_train(train_loader, valid_loader, model, criterion, optimizer, device, epochs)
 
     # quick test/validation of the network
@@ -262,4 +263,5 @@ def main():
     create_checkpoint(model, train_data, save_dir)
 
 
-main()
+if __name__ == '__main__':
+    main()

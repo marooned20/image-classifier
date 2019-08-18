@@ -155,4 +155,6 @@ def main():
         print('------------------------------------------')
         print('\n'.join([str(i) for i in sorted(topk_dict.items(), key = lambda x: x[1], reverse=True)[:top_k]]))
 
-main()
+
+if __name__ == '__main__':
+    main()
