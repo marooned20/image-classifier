@@ -28,17 +28,17 @@ VALID_MODELS = ['vgg13', 'vgg16', 'vgg19']
 def create_parser():
 
     parser = argparse.ArgumentParser(description='Train your neural network')
-    parser.add_argument('data_dir', type=str, required=True,
+    parser.add_argument('data_dir', type=str,
                         help='path to folder where train, valid and test images are stored')
-    parser.add_argument('--save_dir', type=str, required=False, default=os.getcwd(),
+    parser.add_argument('--save_dir', type=str, default=os.getcwd(),
                         help='path to folder where trained model will be saved as <arch>_checkpoint.pth')
-    parser.add_argument('--arch', type=str, required=False, default='vgg16',
+    parser.add_argument('--arch', type=str, default='vgg16',
                         help='pretrained models from torch.models - choose from "vgg13", "vgg16" or "vgg19"')
-    parser.add_argument('--learning_rate', type=float, required=False, default=0.001,
+    parser.add_argument('--learning_rate', type=float, default=0.001,
                         help='your favourite learning rate')
-    parser.add_argument('--hidden_units', type=int, required=False, default=512,
+    parser.add_argument('--hidden_units', type=int, default=512,
                         help='number of features in the hidden layer')
-    parser.add_argument('--epochs', type=int, required=False, default=5, 
+    parser.add_argument('--epochs', type=int, default=5, 
                         help='How many iterations')
     parser.add_argument('--gpu', action='store_true',
                         help='use gpu / CUDA if available')
@@ -46,7 +46,7 @@ def create_parser():
     return parser
 
 
-def transform_load(data_dir, train=True):
+def transform_data(data_dir, train=True):
     # check if directory actually exists
     if not os.path.isdir(data_dir):
         logger.error('Directory path does not exist, please check and try again')
@@ -61,14 +61,18 @@ def transform_load(data_dir, train=True):
                         transforms.RandomHorizontalFlip()]
         out_transforms = transforms.Compose(list(chain(add_transform, base_transform)))
         data = datasets.ImageFolder(data_dir, transform=out_transforms)
-        data_loader = torch.utils.data.DataLoader(data, batch_size=64, shuffle=True)
+        # data_loader = torch.utils.data.DataLoader(data, batch_size=64, shuffle=True)
     else:
         add_transform = [transforms.Resize(256), transforms.CenterCrop(224)]
         out_transforms = transforms.Compose(list(chain(add_transform, base_transform)))
         data = datasets.ImageFolder(data_dir, transform=out_transforms)
-        data_loader = torch.utils.data.DataLoader(data, batch_size=64, shuffle=True)
+        # data_loader = torch.utils.data.DataLoader(data, batch_size=64, shuffle=True)
 
-    return data_loader
+    return data
+
+
+def data_loader(data):
+    return torch.utils.data.DataLoader(data, batch_size=64, shuffle=True)
 
 
 def load_model(architecture):
@@ -84,11 +88,12 @@ def load_model(architecture):
     # freeze to avoid backpropogation
     for param in model.parameters():
         param.requires_grad = False
+    logger.debug('params frozen')
     
     return model
 
 
-def create_classifier(model, hidden_units=512, output_units=102):
+def create_classifier(model, hidden_units, output_units=102):
 
     # make sure hidden units are greater than output_units
     assert hidden_units > output_units, 'Hidden Layer must be greater than 102'
@@ -116,6 +121,7 @@ def validate_train_model(model, loader, criterion, device):
         valid_loss = 0
         accuracy = 0
         model.to(device)
+        logger.debug('training model on {}'.format(device))
 
         for inputs, labels in loader:
             inputs, labels = inputs.to(device), labels.to(device)
@@ -130,7 +136,7 @@ def validate_train_model(model, loader, criterion, device):
     return valid_loss, accuracy
     
 
-def nn_train(train_loader, valid_loader, model, criterion, optimizer, device, epochs=5):
+def nn_train(train_loader, valid_loader, model, criterion, optimizer, device, epochs):
     print_every = 30
     for epoch in range(epochs):
         model.to(device)
@@ -192,3 +198,52 @@ def main():
 
     # parse arguments
     args = parser.parse_args()
+
+    # assign values
+    data_dir = args.data_dir
+    learning_rate = args.learning_rate
+    save_dir = args.save_dir
+    arch = args.arch
+    hidden_units = args.hidden_units
+    epochs = args.epochs
+    gpu = args.gpu
+
+    
+    device = torch.device('cuda' if gpu and torch.cuda.is_available() else 'cpu')
+    # TODO: remove print statement later
+    print(data_dir, learning_rate, save_dir, arch, hidden_units, epochs, gpu, device)
+
+    # transform and load data
+    train_dir = data_dir + '/train'
+    valid_dir = data_dir + '/valid'
+    test_dir = data_dir + '/test'
+
+    train_data = transform_data(train_dir)
+    valid_data = transform_data(valid_dir, train=False)
+    test_data = transform_data(test_dir, train=False)
+
+    train_loader = data_loader(train_data)
+    valid_loader = data_loader(valid_data)
+    test_loader = data_loader(test_data)
+
+    # load model
+    model = load_model(arch)
+
+    # create classifier
+    create_classifier(model, hidden_units)
+    criterion = nn.NLLLoss()
+    optimizer = optim.Adam(model.classifier.parameters(), lr=learning_rate)
+
+    # train neural network
+    nn_train(train_loader, valid_loader, model, criterion, optimizer, device, epochs)
+
+    # quick test/validation of the network
+    test_loss, accuracy = validate_train_model(model, test_loader, criterion, device)
+    logger.debug("test Loss: {:.3f}.. ".format(test_loss/len(test_loader)),
+      "test Accuracy: {:.3f}".format(accuracy/len(test_loader)))
+
+    # save checkpoint
+    create_checkpoint(model, train_data, save_dir)
+
+
+main()
