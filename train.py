@@ -50,7 +50,7 @@ def transform_load(data_dir, train=True):
     return data_loader
 
 
-def load_model(architecture='vgg16'):
+def load_model(architecture):
     if architecture in VALID_MODELS:
         try:
             exec("model = models.{}(pretrained=True)".format(architecture))
@@ -67,6 +67,99 @@ def load_model(architecture='vgg16'):
     return model
 
 
-def create_classifier():
+def create_classifier(model, hidden_units=512, output_units=102):
+
+    # make sure hidden units are greater than output_units
+    assert hidden_units > output_units, 'Hidden Layer must be greater than 102'
     
-    pass
+    # extract base input features from original (vgg16) model
+    input_features = model.classifier[0].in_features
+
+    # define classifier with 3 layers
+    classifier = nn.Sequential(OrderedDict([('fc1', nn.Linear(input_features, 4096)),
+                                        ('relu1', nn.ReLU()),
+                                        ('dropout1', nn.Dropout(p=0.3)),
+                                        ('fc2', nn.Linear(4096, hidden_units)),
+                                        ('relu2', nn.ReLU()),
+                                        ('dropout2', nn.Dropout(p=0.3)),
+                                        ('fc3', nn.Linear(512, output_units)),
+                                        ('output', nn.LogSoftmax(dim=1))
+                                        ]))
+    
+    model.classifier = classifier
+
+
+def validate_train_model(model, loader, criterion, device):
+    with torch.no_grad():
+            
+        valid_loss = 0
+        accuracy = 0
+        model.to(device)
+
+        for inputs, labels in loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            out = model.forward(inputs)
+            valid_loss = valid_loss + criterion(out, labels).item()
+
+            ps = torch.exp(out)
+            equality = (labels.data == ps.max(dim=1)[1])
+            accuracy = accuracy + equality.type(torch.FloatTensor).mean()
+        
+    return valid_loss, accuracy
+    
+
+def nn_train(train_loader, valid_loader, model, criterion, optimizer, device, epochs=5):
+    print_every = 30
+    for epoch in range(epochs):
+        model.to(device)
+        model.train()
+        for images, labels in train_loader:
+            steps = steps + 1
+            
+            images, labels = images.to(device), labels.to(device)
+            
+            optimizer.zero_grad()
+            
+            # updating only the weights of the feed-forward network
+            out = model.forward(images)
+            loss = criterion(out, labels)
+            loss.backward()
+            optimizer.step()
+            
+            running_loss = running_loss + loss.item()
+            
+            if steps % print_every == 0:
+                model.eval()
+                valid_loss, accuracy = validate_train_model(model, valid_loader, criterion, device)
+                    
+                logger.debug("Epoch: {}/{}.. ".format(epoch+1, epochs),
+                    "Training Loss: {:.3f}.. ".format(running_loss/print_every),
+                    "Validation Loss: {:.3f}.. ".format(valid_loss/len(valid_loader)),
+                    "Validation Accuracy: {:.3f}".format(accuracy/len(valid_loader)))
+                
+                running_loss = 0
+                model.train()
+
+
+def create_checkpoint(model, train_data, save_dir):
+    # class to index mapping from training data to model
+    model.class_to_idx = train_data.class_to_idx
+
+    # create checkpoint dict with relevant fields
+    checkpoint_meta = {'classifier': model.classifier,
+                'state_dict': model.state_dict(),
+                'mapping': model.class_to_idx,
+                'architecture': model.name}
+
+    if not os.path.isdir(save_dir):
+        logger.error('Directory path does not exist, please check and try again')
+
+    # save as .pth
+    fname = '{}_checkpoint.pth'.format(str(model.name))
+    f_dir = os.path.join(save_dir, fname)
+    try:
+        torch.save(checkpoint_meta, f_dir)
+        logger.debug('Saved checkpoint file: {} at {}'.format(fname, save_dir))
+    except Exception as e:
+        logger.error('Could not save checkpoint file. Error: {}'.format(e))
